@@ -50,6 +50,9 @@
 			<scope>test</scope>
 		</dependency>
 
+
+        <!-- https://mvnrepository.com/artifact/org.springframework.ai/spring-ai-core -->
+
         <!-- https://mvnrepository.com/artifact/org.springframework.ai/spring-ai-starter-model-ollama -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
@@ -84,6 +87,7 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+
 
         <!-- https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt -->
         <dependency>

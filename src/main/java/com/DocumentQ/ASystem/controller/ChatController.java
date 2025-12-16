@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+
 @RestController
 @RequestMapping("/chat")
 @RequiredArgsConstructor
@@ -21,8 +23,8 @@ public class ChatController {
     private ChatService chatService;
 
     @PostMapping("/query")
-    public ResponseEntity<?> query(
-                                  @RequestBody QueryRequest request)
+    public ResponseEntity<?> query(@RequestBody QueryRequest request,
+                                   Principal principal)
     {
         log.info("Received query for document {}: {}", request.getDocumentId(), request.getQuery());
 
@@ -30,7 +32,9 @@ public class ChatController {
 
         Long dId = Long.parseLong(request.getDocumentId());
 
-        ChatMessageDto response = chatService.processQuery(dId, request.getQuery());
+        String email = principal.getName();
+
+        ChatMessageDto response = chatService.processQuery(dId, email, request.getQuery());
         log.info("chat response = {}", response);
         return new ResponseEntity<>(response,HttpStatus.OK);
     }

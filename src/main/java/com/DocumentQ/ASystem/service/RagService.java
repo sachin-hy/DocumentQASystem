@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -34,8 +36,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class RagService {
 
+//    @Autowired
+//    private ChatModel chatModel;
+
     @Autowired
-    private ChatModel chatModel;
+    private ChatClient chatClient;
 
     @Autowired
     private EmbeddingModel embeddingModel;
@@ -123,7 +128,7 @@ public class RagService {
     }
 
     // retrive datafrom database
-    public String queryDocument(String query, Long documentId) {
+    public String queryDocument(String query,String email, Long documentId) {
 
         try {
             log.info("Starting query for query : {}", query);
@@ -140,7 +145,9 @@ public class RagService {
             String dbResult = list.stream().map(Document::getFormattedContent).collect(Collectors.joining("\\n\\n"));
 
             log.info("Generating user Friendly response ");
-            String response = generateResponse(query, dbResult);
+
+            String id = email + ":" + documentId.toString();
+            String response = generateResponse(query,id, dbResult);
 
             return response;
         }catch(Exception e)
@@ -152,9 +159,9 @@ public class RagService {
 
 
     // generate message for user using the content
-    public String generateResponse(String query, String context)
+    public String generateResponse(String query,String conversationId, String context)
     {
-        String systemPrompt = """
+        String system = """
          You are a document assistant that answers questions based ONLY on provided content.
 
          Instructions:
@@ -172,7 +179,7 @@ public class RagService {
          """;
 
 
-        String userPrompt = """
+        String user = """
          Context from the document:
          ---
          %s
@@ -183,20 +190,31 @@ public class RagService {
          Based ONLY on the context above, please answer the question. If information is unavailable, say so explicitly.
          """.formatted(context, query);
 
-        Message userMessage = new UserMessage(userPrompt);
-        Message systemMessage = new SystemMessage(systemPrompt);
+//        Message userMessage = new UserMessage(user);
+//        Message systemMessage = new SystemMessage(system);
         log.info("system and user prompt are set");
 
-        ChatResponse chatResponse = chatModel.call( new Prompt(
-                List.of(systemMessage, userMessage),
-                ChatOptions.builder().temperature(0.0).build()
-        ));
+       String response = chatClient
+               .prompt()
+               .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+               .system(system)
+               .user(user)
+               .call()
+               .content();
 
-        log.info("query response modified as user friendly");
+       log.info("response returned : {}", response);
+       return response;
 
-        String response =chatResponse.getResult().getOutput().getText();
 
-        log.info("response returned : {}", response);
-        return response;
+//        ChatResponse chatResponse = chatModel.call( new Prompt(
+//                List.of(systemMessage, userMessage),
+//                ChatOptions.builder().temperature(0.0).build()
+//        ));
+//
+//        log.info("query response modified as user friendly");
+//
+//        String response =chatResponse.getResult().getOutput().getText();
+
+
     }
 }

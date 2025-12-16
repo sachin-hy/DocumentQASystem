@@ -3,6 +3,11 @@ package com.DocumentQ.ASystem.congifuration;
 import com.DocumentQ.ASystem.filter.JwtFilter;
 import com.DocumentQ.ASystem.service.SecurityCustomDetailService;
 import org.apache.tika.Tika;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -89,6 +94,25 @@ public class SecurityConfig {
     @Bean
     public Tika tika(){
         return new Tika();
+    }
+
+
+    @Bean
+    public MessageWindowChatMemory messageWindowChatMemory()
+    {
+        return MessageWindowChatMemory.builder()
+                .maxMessages(10)
+                .build();
+    }
+
+
+    @Bean
+    public ChatClient chatClient(ChatModel chatModel)
+    {
+
+        return ChatClient.builder(chatModel)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(messageWindowChatMemory()).build())
+                .build();
     }
 
 

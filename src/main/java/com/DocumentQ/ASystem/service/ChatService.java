@@ -56,10 +56,15 @@ public class ChatService {
     }
 
 
-    public ChatMessageDto processQuery(Long documentId, String query) {
+    public ChatMessageDto processQuery(Long documentId,String email, String query) {
 
         log.info("Processing query for document {}: {}", documentId, query);
-        String response = ragService.queryDocument(query, documentId);
+
+
+
+        String response = ragService.queryDocument(query, email, documentId);
+
+
         log.info("Response of Query : {} ", response );
         ChatMessage userMessage = saveUserMessage(documentId, query, response);
 
