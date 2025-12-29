@@ -57,6 +57,9 @@ The system uses **RAG (Retrieval-Augmented Generation)** to retrieve relevant se
 ### **Backend**
 -  **Java**
 -  **Spring Boot**
+-  **Spring Security**
+-  **JWT Token**
+-  **Spring Hibernate**
 -  **Spring AI**
 -  **PostgreSQL + pgvector**
 
