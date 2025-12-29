@@ -10,15 +10,7 @@ import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.ChatOptions;
-import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +22,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.chat.prompt.Prompt;
+
+
+
 
 @Service
 @RequiredArgsConstructor
@@ -59,17 +62,22 @@ public class RagService {
 
         log.info("Starting indexing for document ID: {}", documentId);
 
-        DocumentDetails documentDetails = documentRepository.findById(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
+           DocumentDetails documentDetails = documentRepository.findById(documentId)
+                   .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        List<String> chunks = createChunks(file);
+           List<String> chunks = createChunks(file);
 
-        List<Document> documents = chunks.stream()
-                .map((content) -> new Document(content,
-                        Map.of("document_id", documentDetails.getId().toString(),"file_name",documentDetails.getFileName()))
-                ).toList();
 
-        vectorStore.add(documents);
+           String summary = "Summary : " + generateSummary(file);
+
+           //add the summary to the chunks list
+           chunks.add(summary);
+
+           List<Document> documents = chunks.stream()
+                   .map((content) -> new Document(content,
+                           Map.of("document_id", documentDetails.getId().toString(), "file_name", documentDetails.getFileName()))
+                   ).toList();
+            vectorStore.add(documents);
 
 
     }
@@ -80,8 +88,15 @@ public class RagService {
     // get the chunk of the file content
     public List<String> createChunks(MultipartFile file) throws IOException, TikaException {
 
-        String fileContent = tika.parseToString(file.getInputStream());
-
+         System.out.println("create chunks is called");
+        String fileContent = null;
+        try {
+              fileContent = tika.parseToString(file.getInputStream());
+         }catch(Exception e)
+         {
+             System.out.println("error on tika par" + e);
+         }
+       System.out.println("file content is stored in filecontent variable");
 
         Long fileSize = file.getSize();
 
@@ -135,11 +150,18 @@ public class RagService {
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(query)
                     .topK(5)
-                    .similarityThreshold(0.75)
+                    .similarityThreshold(0.40)
                     .filterExpression("document_id == '" + documentId + "'")
                     .build();
 
             List<Document> list = vectorStore.similaritySearch(searchRequest);
+
+
+            if(list.size() == 0)
+            {
+                return "The answer is not found in the provided document.";
+            }
+
 
             log.info("Found total {} similar documents", list.size());
             String dbResult = list.stream().map(Document::getFormattedContent).collect(Collectors.joining("\\n\\n"));
@@ -157,44 +179,76 @@ public class RagService {
         }
     }
 
+    public String generateSummary(MultipartFile file) throws IOException, TikaException {
+
+        String fileContent = tika.parseToString(file.getInputStream());
+
+        fileContent = fileContent.replaceAll("\\s+", " ").trim();
+
+        String system = """
+                You are a professional document assistant summarizer .
+                Summarize the given text for a document QA System application .
+                The text is %s
+                """.formatted(fileContent);
+
+        String response = chatClient.prompt()
+                .system(system)
+                .call()
+                .content();
+
+        return response;
+
+    }
+
 
     // generate message for user using the content
     public String generateResponse(String query,String conversationId, String context)
     {
         String system = """
-         You are a document assistant that answers questions based ONLY on provided content.
+          You are a strict document-based Question Answering (QA) assistant.
 
-         Instructions:
-         1. Answer using ONLY the context provided below
-         2. Do NOT use external knowledge or training data
-         3. Quote relevant passages when supporting your answer
-         4. If the answer is not in the context or context is empty, respond: "The answer is not found in the provided document."
-         5. Be concise and factual
-         6. Avoid speculation or assumptions
+          Your role:
+          - Answer questions using ONLY the information present in the provided context.
+          - The context may be irrelevant, incomplete, or unrelated to the question.
 
-         Guidelines:
-         - Stick to document facts only
-         - Cite specific sections when relevant
-         - If partially answerable, state what is covered and what isn't
-         """;
+          STRICT RULES (must follow):
+          1. If the context does NOT clearly and explicitly contain the answer to the question, respond EXACTLY with:
+          "The answer is not found in the provided document."
+          2. Do NOT infer, guess, summarize unrelated content, or use general knowledge.
+          3. Do NOT answer based on assumptions or partial matches.
+          4. Only answer if the context directly addresses the user's question.
+          5. If the context talks about a different topic than the question, treat it as NO ANSWER FOUND.
+          6. If key terms from the question are missing in the context, treat it as NO ANSWER FOUND.
+
+          Answering rules:
+          - Be concise and factual.
+          - Quote relevant lines from the context when answering.
+          - If even slightly unsure, choose NO ANSWER FOUND.
+        """;
 
 
         String user = """
          Context from the document:
-         ---
-         %s
-         ---
+          -------------------------
+          %s
+          -------------------------
 
-         User Question: %s
+          User Question:
+          %s
 
-         Based ONLY on the context above, please answer the question. If information is unavailable, say so explicitly.
+          Task:
+          - First, determine whether the context is directly relevant to the question.
+          - If the context does NOT explicitly answer the question, respond EXACTLY with:
+            "The answer is not found in the provided document."
+          - Only if the answer is clearly present, provide the answer using the context only.
          """.formatted(context, query);
+
 
 //        Message userMessage = new UserMessage(user);
 //        Message systemMessage = new SystemMessage(system);
         log.info("system and user prompt are set");
 
-       String response = chatClient
+        String response = chatClient
                .prompt()
                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                .system(system)

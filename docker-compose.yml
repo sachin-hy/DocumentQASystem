@@ -11,9 +11,7 @@ services:
       POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./db-init.sql:/docker-entrypoint-initdb.d/db-init.sql
+
 
 
   ollama:
@@ -21,6 +19,10 @@ services:
     container_name: document-qa-ollama
     ports:
       - "11434:11434"
+    environment:
+      OLLAMA_LOG_LEVEL: error
+      GIN_MODE: release
+
     volumes:
       - ollama_data:/root/.ollama
 
@@ -72,6 +74,7 @@ services:
       SPRING_AI_MODEL_EMBEDDING: ollama
       SPRING_AI_OLLAMA_EMBEDDING_OPTIONS_MODEL: nomic-embed-text
 
+      SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA: "true"
       SPRING_DATASOURCE_AI_VECTORSTORE_PGVECTOR_DIMENSIONS: 768
       SPRING_DATASOURCE_AI_VECTORSTORE_PGVECTOR_INDEX_TYPE: HNSW
       SPRING_DATASOURCE_AI_VECTORSTORE_PGVECTOR_DISTANCE_TYPE: COSINE_DISTANCE
@@ -81,5 +84,4 @@ services:
       SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
 
 volumes:
-  postgres_data:
   ollama_data:
