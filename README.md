@@ -1,34 +1,34 @@
 # Document Q&A System – AI-powered Document Understanding with RAG
 
-##  Overview
+## # Overview
 A full-stack web application where users can **upload documents (PDF, DOCX, TXT)** and then **ask questions** about the content.  
 The system uses **RAG (Retrieval-Augmented Generation)** to retrieve relevant sections and generate accurate answers.
 
 ---
 
-## ✨ Key Features
+##  # Key Features
 
-### 📄 Intelligent Document Processing
+### # Intelligent Document Processing
 - Automatic document ingestion with text extraction and intelligent chunking
 - Vector-based indexing for fast and accurate semantic search
 - Support for large documents with optimized batch processing
 
-### 🧠 AI-Powered Question Answering
+### # AI-Powered Question Answering
 - Semantic similarity search using **pgvector** and embeddings
 - Context-aware response generation using **Ollama-hosted LLMs**
 - Strict document-grounded answers (no hallucinated responses)
 
-### 💬 Conversational Experience
+### # Conversational Experience
 - Real-time chat-based document querying
 - Persistent conversation history per user and document
 - Context-aware multi-turn interactions
 
-### 🔐 Security & Authentication
+### # Security & Authentication
 - JWT-based authentication and authorization
 - Secure document access per user
 - API-level access control
 
-### ⚙️ Scalable & Containerized Architecture
+### # Scalable & Containerized Architecture
 - Fully containerized using **Docker**
 - Multi-service orchestration via **Docker Compose**
 - Isolated services for:
@@ -37,14 +37,14 @@ The system uses **RAG (Retrieval-Augmented Generation)** to retrieve relevant se
   - Ollama LLM runtime
 - Environment-based configuration for easy deployment
 
-### 🧩 Modern Tech Stack
+### # Modern Tech Stack
 - **Backend:** Spring Boot (REST APIs)
 - **Frontend:** React
 - **Database:** PostgreSQL + pgvector
 - **LLM Runtime:** Ollama (local, offline-first inference)
 - **AI Framework:** Spring AI
 
-### 🔌 RESTful API Design
+### # RESTful API Design
 - APIs for document upload and indexing
 - APIs for semantic search and chat responses
 - APIs for conversation and chat history retrieval
@@ -52,7 +52,7 @@ The system uses **RAG (Retrieval-Augmented Generation)** to retrieve relevant se
 
 ---
 
-##  Tech Stack
+## # Tech Stack
 
 ### **Backend**
 -  **Java**
