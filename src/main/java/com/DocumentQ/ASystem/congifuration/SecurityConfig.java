@@ -2,15 +2,20 @@ package com.DocumentQ.ASystem.congifuration;
 
 import com.DocumentQ.ASystem.filter.JwtFilter;
 import com.DocumentQ.ASystem.service.SecurityCustomDetailService;
+
 import org.apache.tika.Tika;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
+import org.springframework.ai.chat.memory.repository.jdbc.PostgresChatMemoryRepositoryDialect;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -25,6 +30,10 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+
+
+
+
 import java.util.Arrays;
 
 @Configuration
@@ -37,8 +46,13 @@ public class SecurityConfig {
     @Autowired
     private JwtFilter jwtFilter;
 
+    @Autowired
+    private JdbcChatMemoryRepository chatMemoryRepository;
 
-    String[] freePaths = {"/login","/signup"};
+//    @Autowired
+//     private JdbcTemplate jdbcTemplate;
+
+    String[] freePaths = {"/login","/signup","/documents/testingurl"};
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception
     {
@@ -97,10 +111,23 @@ public class SecurityConfig {
     }
 
 
+
+//    @Bean
+//    public ChatMemoryRepository chatMemoryRepository() {
+//
+//        return JdbcChatMemoryRepository.builder()
+//                .jdbcTemplate(jdbcTemplate)
+//                .dialect(new PostgresChatMemoryRepositoryDialect())
+//                .build();
+//    }
+
+
+
     @Bean
-    public MessageWindowChatMemory messageWindowChatMemory()
+    public ChatMemory messageWindowChatMemory()
     {
         return MessageWindowChatMemory.builder()
+                .chatMemoryRepository(chatMemoryRepository)
                 .maxMessages(10)
                 .build();
     }
@@ -114,6 +141,8 @@ public class SecurityConfig {
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(messageWindowChatMemory()).build())
                 .build();
     }
+
+
 
 
 }

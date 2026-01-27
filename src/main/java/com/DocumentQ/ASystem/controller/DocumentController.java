@@ -10,8 +10,12 @@ import com.DocumentQ.ASystem.entity.Users;
 import com.DocumentQ.ASystem.service.DocumentService;
 import com.DocumentQ.ASystem.service.RagService;
 import com.DocumentQ.ASystem.service.UsersService;
+import com.DocumentQ.ASystem.service.preprocessing.DocumentChunk;
+import com.DocumentQ.ASystem.service.preprocessing.DocumentExtractor;
+import com.DocumentQ.ASystem.service.preprocessing.DocumentProcessor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.exception.TikaException;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.List;
 
 @RestController
@@ -37,6 +42,19 @@ public class DocumentController {
     @Autowired
     private UsersService usersService;
 
+    @Autowired
+    private DocumentProcessor documentProcessor;
+
+    @Autowired
+    private DocumentExtractor documentExtractor;
+
+    @Autowired
+    private DocumentChunk  documentChunk;
+
+    @Autowired
+    private EmbeddingModel  embeddingModel;
+
+
 
     @PostMapping("/upload")
     public ResponseEntity<UploadResponse> uploadDocument(@ModelAttribute UploadRequestDto uploadRequestDto,
@@ -51,7 +69,10 @@ public class DocumentController {
             // Upload document
             DocumentDetails document = documentService.uploadDocument(file,user);
 
-            ragService.indexDocument(document.getId(),file);
+            //extract the text
+            String text = documentExtractor.extractText(file);
+
+            ragService.indexDocument(document.getId(),text);
 
             UploadResponse response = UploadResponse.builder()
                     .documentId(document.getId())
@@ -72,6 +93,68 @@ public class DocumentController {
         }
     }
 
+
+    @PostMapping("/testingurl")
+    public ResponseEntity<List<String>> checkUrl(@RequestParam  String url) {
+
+//        try{
+//            String data = documentProcessor.processURL(url);
+//
+//            return ResponseEntity.ok(data);
+//        }catch(Exception e){
+//            log.error("Error processing URL", e);
+//        }
+
+      //  List<String> list = documentChunk.breakText(url);
+
+      //  float[] arr = embeddingModel.embed(list.getFirst());
+     //   for (float f : arr) {
+     //       System.out.println(f);
+     //   }
+
+        List<String> list = documentChunk.createChunks(url);
+        System.out.println("size of chunks list = > " + list.size());
+        return new ResponseEntity<>(list, HttpStatus.OK);
+
+    }
+
+    @PostMapping("/url")
+    public ResponseEntity<UploadResponse> uploadUrl(@RequestParam("url") String url,
+                                            Principal principal)
+    {
+        try {
+            log.info("Recieved upload request for url: {}", url);
+            log.info("request from user : {}", principal.getName());
+
+            String data = documentProcessor.processURL(url);
+
+            Users user = usersService.findByEmail(principal.getName());
+            DocumentDetails documentDetails = documentService.save(data,user);
+            log.info("document details saved successfully");
+
+            ragService.indexDocument(documentDetails.getId(),data);
+
+            log.info("Document uploaded and indexed successfully");
+            UploadResponse response = UploadResponse.builder()
+                    .documentId(documentDetails.getId())
+                    .fileName(documentDetails.getFileName())
+                    .message("Document uploaded and indexed successfully")
+                    .build();
+
+            return new ResponseEntity<>(response,HttpStatus.OK);
+        }catch(Exception e)
+        {
+            UploadResponse response = UploadResponse.builder()
+                    .message("Error processing URL")
+                    .build();
+            log.error("Error processing URL",e);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+
+        }
+
+
+
+    }
 
     @GetMapping
     public ResponseEntity<?> getDocuments(Principal principal){

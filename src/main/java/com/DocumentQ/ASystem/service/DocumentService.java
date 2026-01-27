@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.random.RandomGenerator;
 
 @Service
 @Slf4j
@@ -101,5 +102,25 @@ public class DocumentService {
                 .build();
 
         return documentChatResponseDto;
+    }
+
+    public DocumentDetails save(String data, Users user) {
+
+
+        DocumentDetails documentDetails = DocumentDetails.builder()
+                .userDetails(user)
+                .fileName(UUID.randomUUID().toString().replace("-","").substring(0,10))
+                .uniqueFileName(UUID.randomUUID().toString())
+                .contentType("Text")
+                .fileSize((long) data.length())
+                .storagePath("random")
+                .indexed(false)
+                .createdAt(LocalDateTime.now())
+                .chatMessageList(new ArrayList<>())
+                .build();
+
+        documentRepository.save(documentDetails);
+
+        return documentDetails;
     }
 }

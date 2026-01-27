@@ -33,7 +33,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
 
 
-    private Set<String> paths = Set.of("/login","/signup");
+    private Set<String> paths = Set.of("/login","/signup","/documents/testingurl");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
