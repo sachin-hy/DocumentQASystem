@@ -33,17 +33,14 @@ public class DocumentService {
 
     private static final String UPLOAD_DIR = "uploads";
 
-    @Autowired
-    private Tika tika;
+
 
     @Autowired
     private DocumentDetailsRepository documentRepository;
 
-    @Autowired
-    private UsersService usersService;
 
-    @Autowired
-    private  EmbeddingModel embeddingModel;
+
+
 
 
     @Transactional

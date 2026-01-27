@@ -51,11 +51,6 @@ public class DocumentController {
     @Autowired
     private DocumentChunk  documentChunk;
 
-    @Autowired
-    private EmbeddingModel  embeddingModel;
-
-
-
     @PostMapping("/upload")
     public ResponseEntity<UploadResponse> uploadDocument(@ModelAttribute UploadRequestDto uploadRequestDto,
                                                          Principal principal ) throws TikaException, IOException {

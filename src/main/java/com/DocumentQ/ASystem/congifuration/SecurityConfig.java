@@ -12,9 +12,17 @@ import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
 import org.springframework.ai.chat.memory.repository.jdbc.PostgresChatMemoryRepositoryDialect;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.Embedding;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.client.reactive.ClientHttpRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -29,12 +37,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-
-
+import org.springframework.web.reactive.function.BodyInserter;
+import org.springframework.web.reactive.function.client.WebClient;
 
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
@@ -49,10 +59,16 @@ public class SecurityConfig {
     @Autowired
     private JdbcChatMemoryRepository chatMemoryRepository;
 
-//    @Autowired
-//     private JdbcTemplate jdbcTemplate;
+    @Value("${spring.ai.huggingface.embedding.base-url}")
+    private String huggingfaceUrl;
+
+    @Value("${spring.ai.huggingface.embedding.api-key}")
+    private String apiKey;
+
 
     String[] freePaths = {"/login","/signup","/documents/testingurl"};
+
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception
     {
@@ -111,18 +127,6 @@ public class SecurityConfig {
     }
 
 
-
-//    @Bean
-//    public ChatMemoryRepository chatMemoryRepository() {
-//
-//        return JdbcChatMemoryRepository.builder()
-//                .jdbcTemplate(jdbcTemplate)
-//                .dialect(new PostgresChatMemoryRepositoryDialect())
-//                .build();
-//    }
-
-
-
     @Bean
     public ChatMemory messageWindowChatMemory()
     {
@@ -136,7 +140,6 @@ public class SecurityConfig {
     @Bean
     public ChatClient chatClient(ChatModel chatModel)
     {
-
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(messageWindowChatMemory()).build())
                 .build();
@@ -144,6 +147,45 @@ public class SecurityConfig {
 
 
 
+    @Bean
+    @Primary
+    public EmbeddingModel embedding()
+    {
+
+        return new EmbeddingModel(){
+
+            private final WebClient webClient = WebClient.builder()
+                    .baseUrl(huggingfaceUrl)
+                    .defaultHeader("Authorization", "Bearer " + apiKey)
+                    .defaultHeader("Content-Type", "application/json")
+                    .build();
+
+
+            @Override
+            public EmbeddingResponse call(EmbeddingRequest request) {
+                return null;
+            }
+
+            @Override
+            public float[] embed(Document document) {
+
+                Map<String, Object> body = Map.of(
+                        "inputs", document.getText(),
+                        "options", Map.of("wait_for_model", true)
+                );
+
+                return webClient.post()
+                        .bodyValue(body)
+                        .retrieve()
+                        .bodyToMono(float[].class)
+                        .block();
+            }
+
+
+        };
+
+
+    }
 
 }
 

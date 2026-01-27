@@ -28,7 +28,7 @@ public class DocumentChunk {
 
 
 
-    public List<String>  breakText(String text)
+    public List<Document>  breakText(String text)
     {
         BreakIterator it = BreakIterator.getSentenceInstance(Locale.ENGLISH);
 
@@ -37,11 +37,11 @@ public class DocumentChunk {
         int start = it.first();
         int end = it.next();
 
-        List<String> list = new ArrayList<>();
+        List<Document> list = new ArrayList<>();
 
         while(end != BreakIterator.DONE)
         {
-            list.add(text.substring(start, end));
+            list.add(new Document(text.substring(start, end)));
             start = end;
             end = it.next();
         }
@@ -68,13 +68,19 @@ public class DocumentChunk {
     public List<String> createChunks(String text)
     {
 
-        List<String> sentences =   breakText(text);
+        List<Document> sentences =   breakText(text);
 
-        List<float[]> embeddings = embeddingModel.embed(sentences);
+        List<float[]> embeddings = new ArrayList<>();
+
+        for(Document sentence : sentences)
+        {
+            embeddings.add(embeddingModel.embed(sentence.getText()));
+        }
+
 
          System.out.println(embeddings.size());
 
-        StringBuilder str = new StringBuilder(sentences.getFirst());
+        StringBuilder str = new StringBuilder(sentences.getFirst().getText());
 
         List<String> chunks = new ArrayList<>();
 
@@ -86,10 +92,10 @@ public class DocumentChunk {
             if(similarity < 0.5)
             {
                 chunks.add(str.toString());
-                str = new StringBuilder(sentences.get(i+1));
+                str = new StringBuilder(sentences.get(i+1).getText());
 
             }else{
-                str.append(" ").append(sentences.get(i+1));
+                str.append(" ").append(sentences.get(i+1).getText());
             }
         }
 

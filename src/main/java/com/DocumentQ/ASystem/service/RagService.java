@@ -36,11 +36,7 @@ public class RagService {
     @Autowired
     private ChatClient chatClient;
 
-    @Autowired
-    private EmbeddingModel embeddingModel;
 
-    @Autowired
-    private Tika tika;
 
     @Autowired
     private DocumentDetailsRepository documentRepository;
