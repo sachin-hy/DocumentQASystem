@@ -82,7 +82,7 @@ public class SecurityConfig {
         return http.build();
     }
     
-    
+
 
 
     @Bean
@@ -110,7 +110,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList("http://localhost:3000")); ///http://localhost:3000
+        config.setAllowedOrigins(Arrays.asList("http://localhost:3000","https://documentqasystem-froentend.onrender.com/")); ///http://localhost:3000
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE"));
         config.setAllowCredentials(true);
         config.setAllowedHeaders(Arrays.asList("*"));
