@@ -60,10 +60,7 @@ public class ChatService {
 
         log.info("Processing query for document {}: {}", documentId, query);
 
-
-
         String response = ragService.queryDocument(query, email, documentId);
-
 
         log.info("Response of Query : {} ", response );
         ChatMessage userMessage = saveUserMessage(documentId, query, response);
@@ -78,3 +75,7 @@ public class ChatService {
         return chatMessageDto;
     }
 }
+
+
+
+

@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.client.reactive.ClientHttpRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -41,10 +42,7 @@ import org.springframework.web.reactive.function.BodyInserter;
 import org.springframework.web.reactive.function.client.WebClient;
 
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Configuration
 @EnableWebSecurity
@@ -83,6 +81,8 @@ public class SecurityConfig {
 
         return http.build();
     }
+    
+    
 
 
     @Bean
@@ -163,7 +163,42 @@ public class SecurityConfig {
 
             @Override
             public EmbeddingResponse call(EmbeddingRequest request) {
-                return null;
+
+                List<String> texts = request.getInstructions();
+
+                // created batch so that response size will never exced the buffer size , if all chunks are send at same time
+
+                int batchSize = 5;
+
+                List<Embedding> allEmbeddings = new ArrayList<>();
+
+                for (int start = 0; start < texts.size(); start += batchSize) {
+
+                    int end = Math.min(start + batchSize, texts.size());
+
+                    List<String> batch = texts.subList(start, end);
+
+                    Map<String, Object> body = Map.of(
+                            "inputs", batch,
+                            "options", Map.of("wait_for_model", true)
+                    );
+
+                    List<float[]> response = webClient.post()
+                            .bodyValue(body)
+                            .retrieve()
+                            .bodyToMono(new ParameterizedTypeReference<List<float[]>>() {})
+                            .block();
+
+                    if (response == null) {
+                        throw new RuntimeException("Embedding API returned null");
+                    }
+
+                    for (int i = 0; i < response.size(); i++) {
+                        allEmbeddings.add(new Embedding(response.get(i), start + i));
+                    }
+                }
+
+                return new EmbeddingResponse(allEmbeddings);
             }
 
             @Override
@@ -178,6 +213,22 @@ public class SecurityConfig {
                         .bodyValue(body)
                         .retrieve()
                         .bodyToMono(float[].class)
+                        .block();
+            }
+
+
+            @Override
+            public List<float[]> embed(List<String> documents){
+
+                Map<String, Object> body = Map.of(
+                        "inputs", documents,
+                        "options", Map.of("wait_for_model", true)
+                );
+
+                return webClient.post()
+                        .bodyValue(body)
+                        .retrieve()
+                        .bodyToMono(new ParameterizedTypeReference<List<float[]>>() {})
                         .block();
             }
 

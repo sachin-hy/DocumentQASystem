@@ -7,6 +7,7 @@ import com.DocumentQ.ASystem.repository.DocumentDetailsRepository;
 import com.DocumentQ.ASystem.service.preprocessing.DocumentChunk;
 import com.DocumentQ.ASystem.service.preprocessing.DocumentDataCleaner;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
@@ -19,9 +20,12 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.ai.document.Document;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 
@@ -51,118 +55,99 @@ public class RagService {
     private DocumentDataCleaner  documentDataCleaner;
 
 
+    @Transactional
+    public void indexDocument(Long documentId, String text) throws IOException, TikaException {
 
-    public void indexDocument(Long documentId, String text) throws TikaException, IOException {
+        log.info("Starting indexing for document id: {}", documentId);
 
-           log.info("Starting indexing for document ID: {}", documentId);
+        DocumentDetails documentDetails = documentRepository.findById(documentId)
+                .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + documentId));
 
-           DocumentDetails documentDetails = documentRepository.findById(documentId)
-                   .orElseThrow(() -> new RuntimeException("Document not found"));
+        text = documentDataCleaner.clean(text);
 
-           text = documentDataCleaner.clean(text);
+        // create chunk of the  dcouments
+        List<String> chunks = documentChunk.createChunks(text);
 
-
-
-
-         List<String> chunks  = documentChunk.createChunks(text);
-
-           log.info("total number of chunks created = " + chunks.size());
-
-           /*
-              get the summary of the document
-            */
-          String summary = "Summary : " + generateSummary(text);
+        log.info("Total chunks created: {}", chunks.size());
 
 
-           List<Document> documents = chunks.stream()
-                   .map((content) ->
-                           {
-                               return new Document(content,
-                                       Map.of("document_id", documentDetails.getId().toString(), "file_name", documentDetails.getFileName(),"chunk_type","chunk"));
-                           }
-                   ).collect(Collectors.toList());
-
-          documents.add(new Document(summary,Map.of("document_id",documentDetails.getId().toString(),"file_name",documentDetails.getFileName(),"chunk_type","summary")));
-
-            /*
-            *
-            * store it in vector db
-            * */
-
-            log.info("storing data in vector db");
-            vectorStore.add(documents);
-            log.info("after storing data in vector db");
+        // creating documents of the chunks recived
+        List<Document> documents = chunks.stream()
+                .map(content -> new Document(
+                        content,
+                        Map.of(
+                                "document_id", documentDetails.getId().toString(),
+                                "file_name", documentDetails.getFileName(),
+                                "chunk_type", "chunk"
+                        )))
+                .collect(Collectors.toList());
 
 
+        log.info("Saving {} chunks into Vector Store.", documents.size());
+
+        // store the documents in the database ,
+        // again make there embedding to store
+        vectorStore.add(documents);
+
+        log.info("Document indexed successfully.");
     }
 
 
 
+    public String queryDocument(String query, String email, Long documentId) {
 
-    // retrive datafrom database
-    public String queryDocument(String query,String email, Long documentId) {
+        log.info("Searching document id {} for query: {}", documentId, query);
 
-        try {
-            log.info("Starting query for query : {}", query);
-            SearchRequest searchRequest = SearchRequest.builder()
-                    .query(query)
-                    .topK(5)
-                    .similarityThreshold(0.40)
-                    .filterExpression("document_id == '" + documentId + "'")
+        SearchRequest searchRequest = SearchRequest.builder()
+                .query(query)
+                .topK(5)
+                .similarityThreshold(0.40)
+                .filterExpression("document_id == '" + documentId + "'")
+                .build();
+
+        List<Document> documents = vectorStore.similaritySearch(searchRequest);
+
+        // if document simalarity search is empty then extract teh summary of the
+        // document and try providing answer using the summary
+        if (documents.isEmpty()) {
+
+            log.info("No similar chunks found. Searching summary.");
+
+            searchRequest = SearchRequest.builder()
+                    .filterExpression("chunk_type == 'summary'")
                     .build();
 
-            List<Document> list = vectorStore.similaritySearch(searchRequest);
-
-
-            // if nothing is found using similarity search then
-            // provide the summary of the document
-            if(list.isEmpty())
-            {
-                searchRequest = SearchRequest.builder().
-                        filterExpression("chunk_type == 'summary'")
-                        .build();
-                list = vectorStore.similaritySearch(searchRequest);
-            }
-
-
-            log.info("Found total {} similar documents", list.size());
-            String dbResult = list.stream().map(Document::getText).collect(Collectors.joining("\\n\\n"));
-
-            log.info("Generating user Friendly response ");
-
-            String id = email + ":" + documentId.toString();
-
-
-            log.info("df result = " + dbResult);
-            return generateResponse(query,id, dbResult);
-
-
-        }catch(Exception e)
-        {
-            System.out.println("Error in queryDocument method = " + e);
-            return null;
+            // get the summary from the database
+            documents = vectorStore.similaritySearch(searchRequest);
         }
+
+        // join the documents text into single text
+        String context = documents.stream()
+                .map(Document::getText)
+                .collect(Collectors.joining("\n\n"));
+
+        String conversationId = email + ":" + documentId;
+
+        return generateResponse(query, conversationId, context);
     }
 
 
-
-
-    public String generateSummary(String fileContent) throws IOException, TikaException {
+    public String generateSummary(String fileContent)
+            throws IOException, TikaException {
 
         fileContent = fileContent.replaceAll("\\s+", " ").trim();
 
-        String systemInstructions = """
-            You are a professional document assistant summarizer.
-            Summarize the provided text concisely for a document QA System.
-            Max length  of summary is 50000 words
-            """;
-        log.info("generating summaary for the context of length = " + fileContent.length());
+        log.info("Generating summary.");
+
         return chatClient.prompt()
-                .system(systemInstructions)
+                .system("""
+                    You are a professional document assistant summarizer.
+                    Summarize the given document.
+                    Keep the summary concise.
+                    """)
                 .user(fileContent)
                 .call()
                 .content();
-
     }
 
 
@@ -188,7 +173,6 @@ public class RagService {
           - If even unsure, choose NO ANSWER FOUND.
         """;
 
-      //  String system = "You are a helpful assistant. Use ONLY the provided context to answer. If the answer isn't there, say: 'The answer is not found in the provided document.'";
 
         String user = """
          Context of the document from vector db using similarity search:
@@ -220,9 +204,5 @@ public class RagService {
 
        log.info("response returned : {}", response);
        return response;
-
-
-
-
     }
 }

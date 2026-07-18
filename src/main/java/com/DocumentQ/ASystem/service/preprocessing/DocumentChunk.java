@@ -1,107 +1,144 @@
 package com.DocumentQ.ASystem.service.preprocessing;
 
-
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.transformer.splitter.TokenTextSplitter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cglib.core.Local;
+import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.stereotype.Component;
 
-
-import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
-
-import org.springframework.ai.document.Document;
 
 
+
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class DocumentChunk {
 
-    @Autowired
-    private EmbeddingModel embeddingModel;
 
 
+    private final EmbeddingModel embeddingModel;
 
 
-    public List<Document>  breakText(String text)
-    {
+    // Breaks the document into sentences.
+
+    public List<Document> breakText(String text) {
+
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("Document text is empty.");
+        }
+
         BreakIterator it = BreakIterator.getSentenceInstance(Locale.ENGLISH);
-
         it.setText(text);
 
         int start = it.first();
         int end = it.next();
 
-        List<Document> list = new ArrayList<>();
+        List<Document> sentences = new ArrayList<>();
 
-        while(end != BreakIterator.DONE)
-        {
-            list.add(new Document(text.substring(start, end)));
+        while (end != BreakIterator.DONE) {
+
+            String sentence = text.substring(start, end).trim();
+
+            //System.out.println(sentence);
+
+            if (!sentence.isEmpty()) {
+                sentences.add(new Document(sentence));
+            }
+
             start = end;
             end = it.next();
         }
 
+        if (sentences.isEmpty()) {
+            throw new IllegalArgumentException("No valid sentences found in document.");
+        }
 
-        return list;
+        log.info("Total sentences created: {}", sentences.size());
+
+        return sentences;
     }
 
 
 
+
+    //  Calculates cosine similarity between two embedding vectors.
+
     private double cosineSimilarity(float[] vectorA, float[] vectorB) {
-        double dotProduct = 0.0;
-        double normA = 0.0;
-        double normB = 0.0;
+
+        double dotProduct = 0;
+        double normA = 0;
+        double normB = 0;
+
         for (int i = 0; i < vectorA.length; i++) {
             dotProduct += vectorA[i] * vectorB[i];
-            normA += Math.pow(vectorA[i], 2);
-            normB += Math.pow(vectorB[i], 2);
+            normA += vectorA[i] * vectorA[i];
+            normB += vectorB[i] * vectorB[i];
         }
+
+        if (normA == 0 || normB == 0) {
+            return 0;
+        }
+
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
 
-    public List<String> createChunks(String text)
-    {
+     // Creates semantic chunks using sentence embeddings.
+     public List<String> createChunks(String text) {
 
-        List<Document> sentences =   breakText(text);
+        log.info("Starting semantic chunk generation.");
+
+        List<Document> sentences = breakText(text);
+
+        // If there is only one sentence
+        if (sentences.size() == 1) {
+            return List.of(sentences.getFirst().getText());
+        }
 
         List<float[]> embeddings = new ArrayList<>();
 
-        for(Document sentence : sentences)
-        {
-            embeddings.add(embeddingModel.embed(sentence.getText()));
+        log.info("Generating embeddings.");
+        for (Document sentence : sentences) {
+
+            float[] embedding = embeddingModel.embed(sentence);
+
+            if (embedding == null || embedding.length == 0) {
+                throw new IllegalStateException("Failed to generate embedding for sentence.");
+            }
+
+            embeddings.add(embedding);
         }
 
-
-         System.out.println(embeddings.size());
-
-        StringBuilder str = new StringBuilder(sentences.getFirst().getText());
+         log.info("Generated {} embeddings.", embeddings.size());
 
         List<String> chunks = new ArrayList<>();
 
-        for(int i=0; i < embeddings.size() - 1; i++)
-        {
+        StringBuilder currentChunk = new StringBuilder(sentences.getFirst().getText());
+
+        final double THRESHOLD = 0.50;
+
+        for (int i = 0; i < embeddings.size() - 1; i++) {
+
             double similarity = cosineSimilarity(embeddings.get(i), embeddings.get(i + 1));
 
-            System.out.println(similarity);
-            if(similarity < 0.5)
-            {
-                chunks.add(str.toString());
-                str = new StringBuilder(sentences.get(i+1).getText());
-
-            }else{
-                str.append(" ").append(sentences.get(i+1).getText());
+            if (similarity < THRESHOLD) {
+                chunks.add(currentChunk.toString().trim());
+                currentChunk = new StringBuilder(sentences.get(i + 1).getText());
+            } else {
+                currentChunk.append(" ").append(sentences.get(i + 1).getText());
             }
         }
 
-        chunks.add(str.toString());
+        chunks.add(currentChunk.toString().trim());
 
-        return  chunks;
+        log.info("Semantic chunking completed. Total chunks created: {}", chunks.size());
+
+        return chunks;
     }
-
 }
+
