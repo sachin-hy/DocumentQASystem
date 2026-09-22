@@ -31,11 +31,8 @@ import java.util.List;
 public class DocumentController {
 
     private final DocumentService documentService;
-    private final RagService ragService;
     private final UsersService usersService;
-    private final DocumentProcessor documentProcessor;
-    private final DocumentExtractor documentExtractor;
-    private final DocumentChunk documentChunk;
+
 
 
 
@@ -57,16 +54,13 @@ public class DocumentController {
 
         DocumentDetails document = documentService.uploadDocument(file, user);
 
-        String extractedText = documentExtractor.extractText(file);
 
-        ragService.indexDocument(document.getId(), extractedText);
-
-        log.info("Document {} indexed successfully.", document.getId());
+        log.info("Document {} uploaded successfully and queued for processing.", document.getId());
 
         UploadResponse response = UploadResponse.builder()
                 .documentId(document.getId())
                 .fileName(document.getFileName())
-                .message("Document uploaded and indexed successfully.")
+                .message("Document uploaded successfully and queued for processing.")
                 .build();
 
         return ResponseEntity.ok(response);
@@ -85,13 +79,8 @@ public class DocumentController {
 
         log.info("Received URL upload request: {}", url);
 
-        Users user = usersService.findByEmail(principal.getName());
+        DocumentDetails document = documentService.save(url,principal.getName());
 
-        String extractedText = documentProcessor.processURL(url);
-
-        DocumentDetails document = documentService.save(extractedText, user);
-
-        ragService.indexDocument(document.getId(), extractedText);
 
         log.info("URL indexed successfully. Document Id={}", document.getId());
 

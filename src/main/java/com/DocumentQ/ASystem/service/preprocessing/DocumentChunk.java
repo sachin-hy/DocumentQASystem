@@ -24,6 +24,69 @@ public class DocumentChunk {
     private final EmbeddingModel embeddingModel;
 
 
+
+
+    // Creates semantic chunks using sentence embeddings.
+    public List<String> createChunks(String text) {
+
+        log.info("Starting semantic chunk generation.");
+
+        List<Document> sentences = breakText(text);
+
+        // If there is only one sentence
+        if (sentences.size() == 1) {
+            return List.of(sentences.getFirst().getText());
+        }
+
+        List<float[]> embeddings = new ArrayList<>();
+
+        log.info("Generating embeddings.");
+        for (Document sentence : sentences) {
+
+            float[] embedding = embeddingModel.embed(sentence);
+
+            if (embedding == null || embedding.length == 0) {
+                throw new IllegalStateException("Failed to generate embedding for sentence.");
+            }
+
+            embeddings.add(embedding);
+        }
+
+        log.info("Generated {} embeddings.", embeddings.size());
+
+        List<String> chunks = new ArrayList<>();
+
+        StringBuilder currentChunk = new StringBuilder(sentences.getFirst().getText());
+
+        final double THRESHOLD = 0.50;
+
+        for (int i = 0; i < embeddings.size() - 1; i++) {
+
+            double similarity = cosineSimilarity(embeddings.get(i), embeddings.get(i + 1));
+
+            if (similarity < THRESHOLD) {
+                chunks.add(currentChunk.toString().trim());
+                currentChunk = new StringBuilder(sentences.get(i + 1).getText());
+            } else {
+                currentChunk.append(" ").append(sentences.get(i + 1).getText());
+            }
+        }
+
+        chunks.add(currentChunk.toString().trim());
+
+        log.info("Semantic chunking completed. Total chunks created: {}", chunks.size());
+
+        return chunks;
+    }
+
+
+
+
+
+
+
+
+
     // Breaks the document into sentences.
 
     public List<Document> breakText(String text) {
@@ -88,57 +151,6 @@ public class DocumentChunk {
     }
 
 
-     // Creates semantic chunks using sentence embeddings.
-     public List<String> createChunks(String text) {
 
-        log.info("Starting semantic chunk generation.");
-
-        List<Document> sentences = breakText(text);
-
-        // If there is only one sentence
-        if (sentences.size() == 1) {
-            return List.of(sentences.getFirst().getText());
-        }
-
-        List<float[]> embeddings = new ArrayList<>();
-
-        log.info("Generating embeddings.");
-        for (Document sentence : sentences) {
-
-            float[] embedding = embeddingModel.embed(sentence);
-
-            if (embedding == null || embedding.length == 0) {
-                throw new IllegalStateException("Failed to generate embedding for sentence.");
-            }
-
-            embeddings.add(embedding);
-        }
-
-         log.info("Generated {} embeddings.", embeddings.size());
-
-        List<String> chunks = new ArrayList<>();
-
-        StringBuilder currentChunk = new StringBuilder(sentences.getFirst().getText());
-
-        final double THRESHOLD = 0.50;
-
-        for (int i = 0; i < embeddings.size() - 1; i++) {
-
-            double similarity = cosineSimilarity(embeddings.get(i), embeddings.get(i + 1));
-
-            if (similarity < THRESHOLD) {
-                chunks.add(currentChunk.toString().trim());
-                currentChunk = new StringBuilder(sentences.get(i + 1).getText());
-            } else {
-                currentChunk.append(" ").append(sentences.get(i + 1).getText());
-            }
-        }
-
-        chunks.add(currentChunk.toString().trim());
-
-        log.info("Semantic chunking completed. Total chunks created: {}", chunks.size());
-
-        return chunks;
-    }
 }
 

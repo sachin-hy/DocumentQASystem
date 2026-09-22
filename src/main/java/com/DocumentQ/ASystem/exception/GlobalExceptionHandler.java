@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 
@@ -55,7 +56,18 @@ public class GlobalExceptionHandler {
 
 
 
+   @ExceptionHandler(FileUploadException.class)
+   public ResponseEntity<ErrorResponse> handleFileUpload(FileUploadException ex,
+                                                         HttpServletRequest request){
 
+        log.error("Exeption While uploading file" , ex);
+
+        return buildErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+   }
 
     @ExceptionHandler(TikaException.class)
     public ResponseEntity<ErrorResponse> handleTikaException(

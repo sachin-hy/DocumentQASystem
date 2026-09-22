@@ -6,9 +6,12 @@ import com.DocumentQ.ASystem.dto.DocumentResponseDto;
 import com.DocumentQ.ASystem.entity.DocumentDetails;
 import com.DocumentQ.ASystem.entity.Users;
 import com.DocumentQ.ASystem.repository.DocumentDetailsRepository;
+import com.DocumentQ.ASystem.utils.FileUploader;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tomcat.util.http.fileupload.FileUpload;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,6 +37,8 @@ public class DocumentService {
     @Autowired
     private DocumentDetailsRepository documentRepository;
 
+    @Autowired
+    private UsersService usersService;
 
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
             "application/pdf",
@@ -41,6 +46,14 @@ public class DocumentService {
     );
 
     private static final long MAX_FILE_SIZE = 25 * 1024 * 1024;
+
+    @Autowired
+    private FileUploader fileUploader;
+
+    @Autowired
+    private RabbitMQProducer rabbitMQProducer;
+
+
 
     @Transactional
     public DocumentDetails uploadDocument(MultipartFile file, Users user) throws IOException {
@@ -67,13 +80,11 @@ public class DocumentService {
 
         log.info("Uploading document: {}", file.getOriginalFilename());
 
-        Files.createDirectories(Paths.get(UPLOAD_DIR));
+         FileUploader.UploadResult uploadResult = fileUploader.uploadFile(file);
+
 
         String uniqueFileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
 
-        Path filePath = Paths.get(UPLOAD_DIR, uniqueFileName);
-
-        Files.write(filePath, file.getBytes());
 
         DocumentDetails document = DocumentDetails.builder()
                 .userDetails(user)
@@ -81,7 +92,7 @@ public class DocumentService {
                 .uniqueFileName(uniqueFileName)
                 .contentType(file.getContentType())
                 .fileSize(file.getSize())
-                .storagePath(filePath.toString())
+                .storagePath(uploadResult.url())
                 .indexed(false)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -90,7 +101,10 @@ public class DocumentService {
 
         documentRepository.save(document);
 
+
         log.info("Document uploaded successfully. Document Id: {}", document.getId());
+
+        rabbitMQProducer.sendForProcessing(document.getId(), document.getStoragePath());
 
         return document;
     }
@@ -144,11 +158,13 @@ public class DocumentService {
 
 
     @Transactional
-    public DocumentDetails save(String data, Users user) {
+    public DocumentDetails save(String url,String email) {
 
-        if (data == null || data.isBlank()) {
-            throw new IllegalArgumentException("Document content cannot be empty.");
+        if (url == null || url.isBlank()) {
+            throw new IllegalArgumentException("URL cannot be empty.");
         }
+
+        Users user = usersService.findByEmail(email);
 
         log.info("Saving URL document.");
 
@@ -157,8 +173,8 @@ public class DocumentService {
                 .fileName(UUID.randomUUID().toString().replace("-", "").substring(0, 10))
                 .uniqueFileName(UUID.randomUUID().toString())
                 .contentType("Text")
-                .fileSize((long) data.length())
-                .storagePath("URL")
+                .fileSize((long) 0)
+                .storagePath(url)
                 .indexed(false)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -166,10 +182,9 @@ public class DocumentService {
                 .build();
 
         documentRepository.save(document);
-
         log.info("URL document saved successfully. Document Id: {}", document.getId());
 
-
+        rabbitMQProducer.sendForProcessing(document.getId(), document.getStoragePath());
 
         return document;
     }

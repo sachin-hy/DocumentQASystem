@@ -37,11 +37,15 @@ public class DocumentProcessor {
         log.info("Detected URL type: {}", urlType);
 
         switch (urlType) {
+
             case GOOGLE_DRIVE:
                 return processGoogleDrive(url);
 
             case DROPBOX:
                 return processDropBox(url);
+
+            case CLOUDINARY:
+                return processCloudinary(url);
 
             case DIRECT_DOCX:
                 return processDirectDocx(url);
@@ -130,6 +134,13 @@ public class DocumentProcessor {
         if (!url.contains("/pdf/")) {
             url = url.replace("/abs/", "/pdf/") + ".pdf";
         }
+
+        return tika.parseToString(new URL(url));
+    }
+
+    private String processCloudinary(String url) throws IOException, TikaException {
+
+        log.info("Processing Cloudinary document.");
 
         return tika.parseToString(new URL(url));
     }

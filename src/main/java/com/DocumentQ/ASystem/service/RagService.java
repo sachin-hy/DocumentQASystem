@@ -56,19 +56,19 @@ public class RagService {
 
 
     @Transactional
-    public void indexDocument(Long documentId, String text) throws IOException, TikaException {
+    public void indexDocument(Long documentId, List<String> chunks) throws IOException, TikaException {
 
         log.info("Starting indexing for document id: {}", documentId);
 
         DocumentDetails documentDetails = documentRepository.findById(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + documentId));
 
-        text = documentDataCleaner.clean(text);
+//        text = documentDataCleaner.clean(text);
+//
+//        // create chunk of the  dcouments
+//        List<String> chunks = documentChunk.createChunks(text);
 
-        // create chunk of the  dcouments
-        List<String> chunks = documentChunk.createChunks(text);
-
-        log.info("Total chunks created: {}", chunks.size());
+//        log.info("Total chunks created: {}", chunks.size());
 
 
         // creating documents of the chunks recived
